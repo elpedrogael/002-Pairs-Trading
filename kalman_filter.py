@@ -9,28 +9,15 @@ class KalmanFilter:
         self.R = np.array([[1]]) * 0.001 #Errors in observations - TUNE
         self.P = np.eye(2) * 10 #Predicted error covariance matrix
 
+    def predict(self):
+        self.P = self.A @ self.P @ self.A.T + self.Q
+
     def update(self, x, y):
         C = np.array([[1, x]])  # Observations (1, 2)
         S = C @ self.P @ C.T + self.R
         K = self.P @ C.T @ np.linalg.inv(S)  # Kalman gain
-        self.P = (np.eye(2) - K @ C) @ self.P
         self.x = self.x + K @ (y - C @ self.x)
+        self.P = (np.eye(2) - K @ C) @ self.P
 
-    def predict(self):
-        self.P = self.A @ self.P @ self.A.T + self.Q
-#** TOCHECK
-kalman_linear = KalmanFilter()
-kalman_preds = []
-for i in range(len(xl)):
-    kalman_linear.predict()
-    x_ = xl[i]
-    y_ = yl[i]
-    kalman_linear.update(x_, y_)
-    params = kalman_linear.x
-    kalman_preds.append(params[0] + params[1] * x_)
-#**
-plt.figure(figsize = (12,5))
-plt.scatter(xl,yl)
-plt.plot(xl, kalman_preds, 'r')
-plt.legend()
-plt.show()
+    def get_hedge_ratio(self):
+        return self.x[1]
