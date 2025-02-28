@@ -1,42 +1,34 @@
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+import ta
 
+data = pd.read_csv("data/historical_data.csv").dropna()
+data["Date"] = pd.to_datetime(data["Date"])  # Ensure Date column is datetime
+data["Close"] = pd.to_numeric(data["Close"], errors='coerce')
+data = data.dropna(subset=['Close'])
 
-def backtest_strategy(data, capital=1_000_000, com=0.00125):
-    # Calculate spread and trading signals
-    data['Spread'] = data['Close'] - data['Hedge Ratio'] * data['Close.1']
-    data['Z-Score'] = (data['Spread'] - data['Spread'].mean()) / data['Spread'].std()
+rsi = ta.momentum.RSIIndicator(data["Close"], window=50)
+data["RSI"] = rsi.rsi()
+data = data.dropna()
 
-    # Generate signals
-    data['Long Signal'] = data['Z-Score'] < -1.5
-    data['Short Signal'] = data['Z-Score'] > 1.5
+#SIGNALS
+data["BUY_SIGNAL"] = data["RSI"] < 30
+data["SELL_SIGNAL"] = data["RSI"] > 70
 
-    # Backtest logic
-    active_positions = []
-    portfolio_value = [capital]
+buy_dates = data.loc[data["BUY_SIGNAL"], "Date"]
+buy_prices = data.loc[data["BUY_SIGNAL"], "Close"]
+sell_dates = data.loc[data["SELL_SIGNAL"], "Date"]
+sell_prices = data.loc[data["SELL_SIGNAL"], "Close"]
 
-    for i, row in data.iterrows():
-        # Close positions
-        if abs(row['Z-Score']) < 0.5:
-            for position in active_positions:
-                capital += (position['shares'] * row['Close']) * (1 - com)
-            active_positions = []
+plt.figure(figsize=(12, 6))
+plt.plot(data["Date"], data["Close"], label="Stock Price", color='blue', linewidth=1.5)
+plt.scatter(buy_dates, buy_prices, marker='^', color='green', label="Buy Signal", s=100)
+plt.scatter(sell_dates, sell_prices, marker='v', color='red', label="Sell Signal", s=100)
+plt.title("Stock Price with Buy/Sell Signals (RSI Strategy)")
+plt.xlabel("Date")
+plt.ylabel("Price (USD)")
+plt.legend()
+plt.grid()
+plt.show()
 
-        # Open long positions
-        if row['Long Signal']:
-            operation_cost = row['Close'] * (1 + com)
-            if capital > operation_cost:
-                capital -= operation_cost
-                active_positions.append({'shares': 1, 'price': row['Close']})
-
-        # Open short positions
-        if row['Short Signal']:
-            operation_cost = row['Close'] * (1 + com)
-            if capital > operation_cost:
-                capital -= operation_cost
-                active_positions.append({'shares': -1, 'price': row['Close']})
-
-        # Update portfolio value
-        portfolio_value.append(capital + sum([pos['shares'] * row['Close'] for pos in active_positions]))
-
-    return portfolio_value
